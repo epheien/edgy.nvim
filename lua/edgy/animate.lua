@@ -32,7 +32,7 @@ function M.get_state(win)
     ---@diagnostic disable-next-line: missing-fields
     M.state[win] = {
       [long] = #edgebar.wins == 1 and bounds[long] or hidden_size,
-      [short] = #edgebar.wins == 1 and 1 or (type(edgebar.size) == "function" and edgebar.size() or edgebar.size),
+      [short] = #edgebar.wins == 1 and 1 or edgebar:short_size(),
       view = vim.api.nvim_win_call(win.win, vim.fn.winsaveview),
     }
     for _, w in ipairs(edgebar.wins) do

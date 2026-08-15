@@ -4,13 +4,14 @@ local M = {}
 ---@alias Edgy.Pos "bottom"|"top"|"left"|"right"
 
 ---@class Edgy.Config
+---@field mouse Edgy.Mouse.Opts
 local defaults = {
   left = {}, ---@type (Edgy.View.Opts|string)[]
   bottom = {}, ---@type (Edgy.View.Opts|string)[]
   right = {}, ---@type (Edgy.View.Opts|string)[]
   top = {}, ---@type (Edgy.View.Opts|string)[]
 
-  ---@type table<Edgy.Pos, {size:integer, wo?:vim.wo}>
+  ---@type table<Edgy.Pos, {size:number | fun():number, wo?:vim.wo}>
   options = {
     left = { size = 30 },
     bottom = { size = 10 },
@@ -35,6 +36,10 @@ local defaults = {
       frames = { "⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏" },
       interval = 80,
     },
+  },
+  -- enable resizing left and right edgebars by dragging their outer separator
+  mouse = {
+    enabled = true,
   },
   -- enable this to exit Neovim when only edgy windows are left
   exit_when_last = false,
@@ -153,6 +158,7 @@ function M.setup(opts)
 
   require("edgy.editor").setup()
   require("edgy.state").setup()
+  require("edgy.mouse").setup(options.mouse)
 
   local group = vim.api.nvim_create_augroup("edgy_layout", { clear = true })
   vim.api.nvim_create_autocmd("WinResized", {

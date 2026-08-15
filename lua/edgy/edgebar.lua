@@ -4,7 +4,7 @@ local View = require("edgy.view")
 
 ---@class Edgy.Edgebar.Opts
 ---@field views (Edgy.View.Opts|string)[]
----@field size? number
+---@field size? number | fun(): number
 ---@field wo? vim.wo
 
 local wincmds = {
@@ -18,7 +18,7 @@ local wincmds = {
 ---@field pos Edgy.Pos
 ---@field views Edgy.View[]
 ---@field wins Edgy.Window[]
----@field size integer
+---@field size number | fun(): number
 ---@field vertical boolean
 ---@field wo? vim.wo
 ---@field dirty boolean
@@ -63,6 +63,31 @@ function M.new(pos, opts)
   end
   self:on_win_enter()
   return self
+end
+
+---@param tab? tabpage
+---@return integer?
+function M:get_user_size(tab)
+  tab = tab or vim.api.nvim_get_current_tabpage()
+  if not vim.api.nvim_tabpage_is_valid(tab) then
+    return
+  end
+  return vim.t[tab]["edgy_" .. self.pos .. "_size"]
+end
+
+---@param size? integer
+---@param tab? tabpage
+function M:set_user_size(size, tab)
+  tab = tab or vim.api.nvim_get_current_tabpage()
+  if vim.api.nvim_tabpage_is_valid(tab) then
+    vim.t[tab]["edgy_" .. self.pos .. "_size"] = size
+  end
+end
+
+---@return integer
+function M:short_size()
+  local max = self.vertical and vim.o.columns or vim.o.lines
+  return M.size(self:get_user_size() or self.size, max)
 end
 
 function M:on_win_enter()
@@ -235,8 +260,8 @@ function M:resize()
   local short = self.vertical and "width" or "height"
 
   self.bounds = {
-    width = self.vertical and M.size(self.size, vim.o.columns) or 0,
-    height = self.vertical and 0 or M.size(self.size, vim.o.lines),
+    width = self.vertical and self:short_size() or 0,
+    height = self.vertical and 0 or self:short_size(),
   }
 
   -- calculate the edgebar bounds
@@ -317,6 +342,7 @@ function M:open()
 end
 
 function M:equalize()
+  self:set_user_size(nil)
   for _, win in ipairs(self.wins) do
     vim.w[win.win].edgy_width = nil
     vim.w[win.win].edgy_height = nil

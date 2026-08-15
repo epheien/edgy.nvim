@@ -37,10 +37,9 @@ FEATURES                                        *edgy.nvim-edgy.nvim-features*
 LIMITATIONS                                  *edgy.nvim-edgy.nvim-limitations*
 
 - fully **collapsing** windows only works with the global statusline.
-- **edgebar** windows can not be **resized** like normal windows.
-    It’s tricky to detect if a window was resized by the user or by a plugin.
-    Check the config section about `keys`. Regular window keymaps have been added
-    for resizing windows.
+- Mouse resizing is limited to the outer separators of the left and right
+    **edgebars**. Use the configured `keys` to resize individual windows or other
+    dimensions.
 - requires **Neovim >= 0.9.2** or **Neovim >= 0.10.0 (after June 5, 2023)**
     for proper folding. If you’re on an older nightly, you can set `fix_win_height`
     to `true` to make it work.
@@ -113,6 +112,10 @@ CONFIGURATION                              *edgy.nvim-edgy.nvim-configuration*
           frames = { "⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏" },
           interval = 80,
         },
+      },
+      -- enable resizing left and right edgebars by dragging their outer separator
+      mouse = {
+        enabled = true,
       },
       -- enable this to exit Neovim when only edgy windows are left
       exit_when_last = false,
