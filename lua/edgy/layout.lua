@@ -1,4 +1,5 @@
 local Config = require("edgy.config")
+local Editor = require("edgy.editor")
 local State = require("edgy.state")
 local Util = require("edgy.util")
 
@@ -103,6 +104,95 @@ function M.foreach(pos, fn)
   end
 end
 
+---@class Edgy.Layout.Size
+---@field win window
+---@field width? number
+---@field height? number
+
+---@param node LayoutTuple
+---@param wins table<window, boolean>
+---@return boolean
+local function has_win(node, wins)
+  if node[1] == "leaf" then
+    return wins[node[2]] or false
+  end
+  for _, child in ipairs(node[2]) do
+    if has_win(child, wins) then
+      return true
+    end
+  end
+  return false
+end
+
+---@param node LayoutTuple
+---@param dimension "width"|"height"
+---@param main table<window, window>
+---@param sizes table<window, Edgy.Layout.Size>
+---@param order Edgy.Layout.Size[]
+local function add_sizes(node, dimension, main, sizes, order)
+  if node[1] == "leaf" then
+    local win = node[2]
+    if main[win] then
+      if not sizes[win] then
+        sizes[win] = { win = win }
+        order[#order + 1] = sizes[win]
+      end
+      sizes[win][dimension] = vim.api["nvim_win_get_" .. dimension](win)
+    end
+    return
+  end
+  for _, child in ipairs(node[2]) do
+    add_sizes(child, dimension, main, sizes, order)
+  end
+end
+
+-- Save main-window dimensions only inside split nodes containing an edgebar.
+-- A window outside such a node can span the whole layout (like an unmanaged
+-- quickfix window) and must be allowed to change size when the edgebar moves.
+---@return Edgy.Layout.Size[]
+local function save_sizes()
+  local edge_wins = { width = {}, height = {} }
+  M.foreach({ "left", "right", "top", "bottom" }, function(edgebar)
+    local dimension = edgebar.vertical and "width" or "height"
+    for _, win in ipairs(edgebar.wins) do
+      edge_wins[dimension][win.win] = true
+    end
+  end)
+
+  local main = Editor.list_wins().main
+  local sizes = {} ---@type table<window, Edgy.Layout.Size>
+  local order = {} ---@type Edgy.Layout.Size[]
+  local function visit(node)
+    if node[1] == "row" and has_win(node, edge_wins.width) then
+      add_sizes(node, "width", main, sizes, order)
+    elseif node[1] == "col" and has_win(node, edge_wins.height) then
+      add_sizes(node, "height", main, sizes, order)
+    end
+    if node[1] ~= "leaf" then
+      for _, child in ipairs(node[2]) do
+        visit(child)
+      end
+    end
+  end
+  visit(vim.fn.winlayout())
+  return order
+end
+
+---@param sizes Edgy.Layout.Size[]
+local function restore_sizes(sizes)
+  -- Two passes let nested splits settle, just like winrestcmd(). Use window
+  -- ids rather than window numbers since laying out edgebars can reorder them.
+  for _ = 1, 2 do
+    for _, dimension in ipairs({ "height", "width" }) do
+      for _, size in ipairs(sizes) do
+        if size[dimension] and vim.api.nvim_win_is_valid(size.win) then
+          pcall(vim.api["nvim_win_set_" .. dimension], size.win, size[dimension])
+        end
+      end
+    end
+  end
+end
+
 ---@return boolean changed whether the layout changed
 local function update()
   ---@type table<string, number[]>
@@ -132,6 +222,7 @@ function M.layout(opts)
 
   local changed = update()
   local needs_layout = M.needs_layout()
+  local sizes ---@type Edgy.Layout.Size[]?
 
   if opts.full and not (changed or needs_layout) then
     return false
@@ -140,6 +231,7 @@ function M.layout(opts)
   if opts.full and needs_layout then
     Util.debug("full layout")
     State.save()
+    sizes = save_sizes()
     M.foreach({ "bottom", "top", "left", "right" }, function(edgebar)
       edgebar:layout()
     end)
@@ -172,6 +264,12 @@ function M.layout(opts)
     else
       Util.debug("resize")
     end
+  end
+
+  if sizes then
+    -- Apply edgebar sizes first so the main windows are restored within their
+    -- final available space instead of competing with a temporarily wide bar.
+    restore_sizes(sizes)
   end
 
   return true

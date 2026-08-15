@@ -155,13 +155,15 @@ function M.setup(opts)
   require("edgy.state").setup()
 
   local group = vim.api.nvim_create_augroup("edgy_layout", { clear = true })
-  vim.api.nvim_create_autocmd({ "BufWinEnter", "WinResized" }, {
+  vim.api.nvim_create_autocmd("WinResized", {
     group = group,
     callback = Layout.update,
   })
-  vim.api.nvim_create_autocmd({ "FileType", "VimResized" }, {
+  vim.api.nvim_create_autocmd({ "BufWinEnter", "FileType", "VimResized" }, {
     group = group,
     callback = function()
+      -- Moving windows during BufWinEnter can fail with E788 after partially
+      -- changing the layout. Wait until the current event has completed.
       vim.schedule(Layout.update)
     end,
   })
